@@ -1,0 +1,22 @@
+-> Primeiro temos que instalar a IA Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+-> Testar baixando um pull de algum modelo como exemplo mistral e llama
+ollama pull mistral 
+ou
+ollama pull llama
+
+-> Para rodar sendo servidor local 
+ollama rum mistral
+
+-> Para rodar como API
+ollama serve
+
+-> Instalando as dependências 
+pip install vosk sounddevice numpy requests flask pyttsx3
+
+-> Baixando o vosk para controle de voz
+mkdir -p ~/vosk && cd ~/vosk
+wget https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
+unzip vosk-model-small-pt-0.3.zip
+mv vosk-model-small-pt-0.3 model

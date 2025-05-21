@@ -1,0 +1,114 @@
+import os
+import subprocess
+import json
+import sounddevice as sd
+import numpy as np
+import requests
+import pyttsx3
+from vosk import Model, KaldiRecognizer
+
+# Caminho para o modelo Vosk
+MODEL_PATH = "~/cebea/vosk/model"  # Ajuste para o caminho correto do seu modelo
+model = Model(os.path.expanduser(MODEL_PATH))
+rec = KaldiRecognizer(model, 16000)
+
+# Configuração da síntese de voz
+engine = pyttsx3.init()
+engine.setProperty("rate", 150)  # Velocidade da fala
+
+# Palavra de ativação
+PALAVRA_ATIVACAO = "faísca"
+
+# Converter texto em fala
+def falar(texto):
+    engine.say(texto)
+    engine.runAndWait()
+
+# Capturar áudio e converter em texto
+def ouvir():
+    print("Ouvindo... Diga 'faísca' para ativar.")
+    with sd.RawInputStream(samplerate=16000, blocksize=8000, dtype="int16", channels=1) as stream:
+        while True:
+            data, _ = stream.read(4000)
+            if rec.AcceptWaveform(bytes(data)):
+                resultado = json.loads(rec.Result())
+                return resultado.get("text", "")
+
+# Interpretar o comando usando o Ollama com um prompt melhorado
+def interpretar_comando(texto):
+    url = "http://localhost:11434/api/generate"
+
+    prompt = (
+        "Você é um assistente de terminal Linux. "
+        "O usuário vai falar comandos em português e sua tarefa é responder com o comando Linux equivalente. "
+        "Responda apenas com o comando, sem explicações. Exemplos:\n"
+        "abre navegador = firefox\n"
+        "abre terminal = gnome-terminal\n"
+        "abre player amarok = amarok --play\n"
+        "temperatura = clima\n"
+        "para a música = amarok --stop\n"
+        "mostra data = date\n"
+        "reiniciar computador = reboot\n"
+        f"O usuário disse: {texto}\n"
+        "Comando Linux:"
+    )
+
+    data_payload = {
+        "model": "llama3:latest",
+        "prompt": prompt,
+        "stream": False
+    }
+
+    try:
+        resposta = requests.post(url, json=data_payload)
+        resposta.raise_for_status()
+        resposta_json = resposta.json()
+        if "response" in resposta_json:
+            return resposta_json["response"].strip()
+        else:
+            print("[ERRO] Campo 'response' não encontrado na resposta.")
+            return "echo 'Erro: resposta inválida da IA'"
+    except requests.exceptions.RequestException as e:
+        print(f"Erro na conexão com Ollama: {e}")
+        return "echo 'Erro ao se conectar com a IA'"
+    except json.JSONDecodeError as e:
+        print(f"Erro ao interpretar JSON da resposta: {e}")
+        print(f"Conteúdo bruto: {resposta.text}")
+        return "echo 'Erro ao interpretar resposta da IA'"
+
+# Executar comando no sistema
+def executar_comando(comando):
+    try:
+        resultado = subprocess.run(comando, shell=True, capture_output=True, text=True)
+        return resultado.stdout.strip() or resultado.stderr.strip()
+    except Exception as e:
+        return str(e)
+
+# Loop principal
+if __name__ == "__main__":
+    while True:
+        fala = ouvir()
+        print(f"Você disse: {fala}")
+
+        if "sair" in fala:
+            print("Encerrando assistente.")
+            falar("Encerrando assistente.")
+            break
+
+        if PALAVRA_ATIVACAO in fala:
+            print("\n⚡ FAÍSCA ATIVADA! Preparando seu pedido...\n")
+            falar("Faísca ativada! Pode mandar seu próximo pedido ou peça para sair.")
+            
+            comando_usuario = fala.replace(PALAVRA_ATIVACAO, "").strip()
+            print(f"[DEBUG] Comando do usuário: {comando_usuario!r}")
+
+            if comando_usuario:
+                comando_interpretado = interpretar_comando(comando_usuario)
+                print(f"[DEBUG] Comando interpretado pela IA: {comando_interpretado}")
+                falar(f"Executando: {comando_interpretado}")
+                resultado = executar_comando(comando_interpretado)
+                print(f"[DEBUG] Resultado do comando: {resultado}")
+                falar(resultado[:100])
+            else:
+                print("[DEBUG] Nenhum comando detectado após 'faísca'")
+

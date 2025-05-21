@@ -1,0 +1,172 @@
+import os
+import subprocess
+import json
+import sounddevice as sd
+import numpy as np
+import requests
+import pyttsx3
+from vosk import Model, KaldiRecognizer
+import serial
+import time
+import random
+
+# Ativa o vosk 
+MODEL_PATH = "~/cebea/vosk/model"
+model = Model(os.path.expanduser(MODEL_PATH))
+rec = KaldiRecognizer(model, 16000)
+
+# Configuração da fala com pyttsx3
+engine = pyttsx3.init()
+engine.setProperty("rate", 150)
+
+# Entradas do arduino 
+try:
+    arduino = serial.Serial("/dev/ttyUSB0", 9600, timeout=1)
+    time.sleep(2)
+    print("[INFO] Arduino conectado com sucesso.")
+except Exception as e:
+    print(f"[ERRO] Não foi possível conectar ao Arduino: {e}")
+    arduino = None
+
+
+# Palavra e nome para ativação do assistente 
+PALAVRA_ATIVACAO = "faísca"
+
+# Começando com as ações do arduino 
+def acender_led1():
+    if arduino: arduino.write(b"1")
+
+def apagar_led1():
+    if arduino: arduino.write(b"0")
+
+def acender_led2():
+    if arduino: arduino.write(b"2")
+
+def apagar_led2():
+    if arduino: arduino.write(b"3")
+
+def ligar_desligar_rapido():
+    acender_led2()
+    time.sleep(0.5)
+    apagar_led2()
+
+# Referente a fala 
+def falar(texto):
+    engine.say(texto)
+    engine.runAndWait()
+
+# Ativação para captura de voz
+def ouvir():
+    print("Ouvindo... Diga 'faísca' para ativar.")
+    with sd.RawInputStream(samplerate=16000, blocksize=8000, dtype="int16", channels=1) as stream:
+        while True:
+            data, _ = stream.read(4000)
+            if rec.AcceptWaveform(bytes(data)):
+                resultado = json.loads(rec.Result())
+                return resultado.get("text", "")
+
+# Neste trecho é a integração com o OLLAMA usamos o prompt para treinamento do que ainda precisamos 
+def interpretar_comando(texto):
+    url = "http://localhost:11434/api/generate"
+
+    prompt = (
+        "Você é um assistente de terminal Linux. "
+        "O usuário fala comandos em português e sua tarefa é responder com o comando Linux equivalente. "
+        "IMPORTANTE: Sempre escreva os números por extenso em português (exemplo: 2 → dois, 10 → dez, 100 → cem). "
+        "Nunca use números em algarismos. "
+        "Responda apenas com o comando, sem explicações. Exemplos:\n"
+        "abre navegador = firefox\n"
+        "abre terminal = gnome-terminal\n"
+        "abre player amarok = amarok --play dois > /dev/null\n"
+        "temperatura = clima\n"
+        "para a música = amarok --stop\n"
+        "mostra data = date\n"
+        "reiniciar computador = reboot\n"
+        f"O usuário disse: {texto}\n"
+        "Comando Linux:"
+    )
+
+    data_payload = {
+        "model": "llama3:latest",
+        "prompt": prompt,
+        "stream": False
+    }
+
+    try:
+        resposta = requests.post(url, json=data_payload)
+        resposta.raise_for_status()
+        resposta_json = resposta.json()
+        return resposta_json.get("response", "").strip()
+    except requests.exceptions.RequestException as e:
+        print(f"Erro na conexão com Ollama: {e}")
+        return "echo 'Erro ao se conectar com a IA'"
+    except json.JSONDecodeError as e:
+        print(f"Erro ao interpretar JSON da resposta: {e}")
+        return "echo 'Erro ao interpretar resposta da IA'"
+
+# Aqui executamos comandos tanto do sistema quanto scripts personalizados 
+def executar_comando(comando):
+    SCRIPTS_DIR = "/home/cebea/scripts"
+
+    caminho_script = os.path.join(SCRIPTS_DIR, comando)
+
+    if os.path.isfile(caminho_script) and os.access(caminho_script, os.X_OK):
+        try:
+            resultado = subprocess.run(caminho_script, shell=True, capture_output=True, text=True)
+            return resultado.stdout.strip() or resultado.stderr.strip()
+        except Exception as e:
+            return f"Erro ao executar o script: {e}"
+    else:
+        # Se não achar o script vai executar como comando do sistema normal
+        try:
+            resultado = subprocess.run(comando, shell=True, capture_output=True, text=True)
+            return resultado.stdout.strip() or resultado.stderr.strip()
+        except Exception as e:
+            return f"Erro ao executar o comando: {e}"
+
+# O loop para fazer chamada do assistente novamente
+if __name__ == "__main__":
+    while True:
+        fala = ouvir()
+        print(f"Você disse: {fala}")
+
+        if "sair" in fala:
+            print("Encerrando assistente.")
+            falar("Encerrando assistente.")
+            break
+
+        if PALAVRA_ATIVACAO in fala:
+            print("\n⚡ FAÍSCA ATIVADA! Preparando seu pedido...\n")
+            falar("Faísca ativada! Pode mandar seu pedido.")
+
+            comando_usuario = fala.replace(PALAVRA_ATIVACAO, "").strip().lower()
+            print(f"[DEBUG] Comando capturado: {comando_usuario}")
+
+            # Comandos diretos para o arduino
+            if comando_usuario in ["ligar led", "acender"]:
+                acender_led1()
+                falar("Ok ligado.")
+                continue
+            elif comando_usuario in ["desligar led", "apagar"]:
+                apagar_led1()
+                falar("Ok desligado.")
+                continue
+            elif comando_usuario == "ligar cliente":
+                ligar_desligar_rapido()
+                falar("Cliente ligado rapidamente.")
+                continue
+            elif comando_usuario == "desligar cliente":
+                apagar_led2()
+                falar("Cliente desligado.")
+                continue
+
+            # Comando genérico com IA
+            if comando_usuario:
+                comando_interpretado = interpretar_comando(comando_usuario)
+                print(f"[DEBUG] Comando do faísca: {comando_interpretado}")
+                falar(f"Executando: {comando_interpretado}")
+                resultado = executar_comando(comando_interpretado)
+                print(f"[DEBUG] Resultado: {resultado}")
+                falar(resultado[:100])
+            else:
+                print("[DEBUG] Nenhum comando encontrado após 'faísca'")
