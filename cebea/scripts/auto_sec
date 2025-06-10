@@ -1,0 +1,92 @@
+#!/bin/bash
+######################################
+#    Márcio Colombo = V1.0           #
+#  Script para configuração Firewall #
+######################################
+
+main()
+{
+	while true; do
+		clear
+		echo "Escolha uma opção"
+		echo "1 - Configura Firewall"
+		echo "2 - Libera serviços ou portas"
+		echo "3 - Sair"
+		read opcao
+		case $opcao in 
+			"1")
+				configura_firewall
+				;;
+			"2")
+				configura_servicos
+				;;
+			"3")
+				echo "Saindo..."
+				break
+				;;
+			*)
+				echo "Opção inválida!"
+				sleep 2
+				;;
+		esac
+	done
+}
+
+configura_firewall()
+{
+	echo "Informe a interface para conexão externa"
+	read interface
+	echo "Informe a zona padrão"
+	read zona
+	echo "Interface: $externa, Zona: $zona"
+	firewall-cmd --set-default-zone=$zona
+	firewall-cmd --reload	
+	firewall-cmd --permanent --change-interface=$interface --zone=$zona
+	firewall-cmd --reload
+	sleep 2
+}
+
+configura_servicos()
+{ 
+	echo "Informe como vai adicionar, porta ou serviço"
+	echo "1 - Configura por porta"
+	echo "2 - Configura por serviço"
+	read servico
+	case $servico in 
+		"1")
+			conf_porta 
+			;;
+		"2")
+			conf_serv 
+			;;
+		*)
+			echo "Opção inválida"
+			sleep 2
+			;;
+	esac
+}
+
+conf_porta()
+{
+	echo "Informe o número da porta TCP"
+	read porta
+	firewall-cmd --get-default-zone
+	read zona
+	firewall-cmd --permanent --add-port=${porta}/tcp --zone=$zona
+	firewall-cmd --reload
+	clear
+}
+
+conf_serv()
+{
+	echo "Informe o serviço a ser adicionado"
+	read servico
+	firewall-cmd --get-default-zone
+	read zona
+	firewall-cmd --permanent --add-service=$servico --zone=$zona
+	firewall-cmd --reload
+	clear 
+}
+
+main
+

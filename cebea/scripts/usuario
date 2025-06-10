@@ -1,0 +1,76 @@
+#!/bin/bash
+###########################################
+#    Script de Gestão de Usuários V1.0    #
+#         Autor: Márcio Colombo           #
+###########################################
+
+main() {
+	while true; do
+		clear
+		echo "==== Menu de Gerenciamento de Usuários ===="
+		echo "1 - Adicionar usuário com senha"
+		echo "2 - Criar grupo local"
+		echo "3 - Adicionar usuário a um grupo"
+		echo "4 - Sair"
+		echo "==========================================="
+		read -p "Escolha uma opção: " opcao
+
+		case $opcao in
+			1)
+				adiciona_usuario
+				;;
+			2)
+				cria_grupo
+				;;
+			3)
+				adiciona_ao_grupo
+				;;
+			4)
+				echo "Saindo..."
+				break
+				;;
+			*)
+				echo "Opção inválida!"
+				sleep 2
+				;;
+		esac
+	done
+}
+
+adiciona_usuario() {
+	read -p "Informe o nome do novo usuário: " usuario
+	if id "$usuario" &>/dev/null; then
+		echo "Usuário já existe!"
+	else
+		sudo useradd "$usuario"
+		echo "Usuário $usuario criado com sucesso."
+		sudo passwd "$usuario"
+	fi
+	read -p "Pressione Enter para continuar..."
+}
+
+cria_grupo() {
+	read -p "Informe o nome do grupo: " grupo
+	if getent group "$grupo" > /dev/null; then
+		echo "Grupo já existe!"
+	else
+		sudo groupadd "$grupo"
+		echo "Grupo $grupo criado com sucesso."
+	fi
+	read -p "Pressione Enter para continuar..."
+}
+
+adiciona_ao_grupo() {
+	read -p "Informe o nome do usuário: " usuario
+	read -p "Informe o nome do grupo: " grupo
+	if id "$usuario" &>/dev/null && getent group "$grupo" > /dev/null; then
+		sudo usermod -aG "$grupo" "$usuario"
+		echo "Usuário $usuario adicionado ao grupo $grupo."
+	else
+		echo "Usuário ou grupo não existe!"
+	fi
+	read -p "Pressione Enter para continuar..."
+}
+
+main
+

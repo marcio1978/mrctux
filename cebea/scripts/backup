@@ -1,0 +1,16 @@
+#!/bin/sh
+#
+# Definindo as variáveis
+DIR_ORIG="/backup/" 		#Diretório a ser compactado 
+DIR_DEST="/mnt/backup/"  	#Diretório de destino
+BKP_NAME="backup_diario_"	#Nome do arquivo de backup
+DATA=`date +%F-%H:%M` 		#Data no nome do arquivo
+
+# Vamos a compactação do diretório:
+tar -czpf ${DIR_DEST}${BKP_NAME}${DATA} ${DIR_ORIG} 2>>/dev/null
+
+# Mensagens do resultado do backup:
+echo "Seu backup foi realizado com sucesso."
+echo "Diretório: ${DIR_ORIG}"
+echo "Destino: ${DIR_DEST}${BKP_NAME}";
+exit 0

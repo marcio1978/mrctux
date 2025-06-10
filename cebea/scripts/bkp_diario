@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+###################### Script de Backup ###################################
+# Definindo as variáveis
+DIR_ORIG=$HOME			 		#Diretório a ser compactado 
+DIR_DEST="/backup/" 		  		#Diretório de destino
+BKP_NAME="bkp_diario_$USER"			#Nome do arquivo de backup
+DATA=`date +%d-%m-%Y--%H:%M` 			#Data no nome do arquivo
+HORA=`date +%H:%M`
+echo "-----------------------------#######---------------------------------"
+echo "Aguarde..."
+# Vamos a compactação do diretório:
+tar -czpf ${DIR_DEST}${BKP_NAME}${DATA} ${DIR_ORIG} 2>/dev/null
+
+# Mensagens do resultado do backup:
+echo "Compactação realizada com sucesso."
+echo "Diretório: ${DIR_ORIG}"
+echo "Destino: ${DIR_DEST}${BKP_NAME}";
+#exit 0
+echo "-----------------------------#######---------------------------------"
+echo "Criptografando o backup"
+gpg2 -r $USER --encrypt ${DIR_DEST}${BKP_NAME}${DATA}
+echo " "
+mv ${DIR_DEST}${BKP_NAME}${DATA} /bkplocal
+echo "-----------------------------#######---------------------------------"
+echo "Sincronizando backup para o servidor"
+# Sincronizando Diretório
+sleep 10
+echo " "
+rsync -av /backup $USER@192.168.122.119:/home/$USER/
+echo "Sincronizado com sucesso"
+echo "Apagando dados locais"
+rm -rf /bkplocal/*
+rm -rf /backup/*
+echo "----------------------------Backup Finalizado-----------------------"

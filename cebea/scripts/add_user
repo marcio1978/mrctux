@@ -1,0 +1,72 @@
+#!/bin/bash
+  main()
+  {
+   clear
+    echo "Escolha uma opção:"
+    echo "1 - Adiciona usuario"
+#    echo "2 - Renova Internet"
+    read opcao;
+    case $opcao in
+    "1")
+     adiciona_usuario
+     ;;
+    "2")
+     renova_internet
+     ;;
+  esac
+ }
+ adiciona_usuario()
+ {
+   echo "Informe o nome do usuário: "
+	read nome
+   echo "Informe a senha:"
+	read senha
+#   echo "Informe o setor do usuário para acesso a internet"
+#	read setor
+   echo "Informe o grupo de trabalho"
+   	read grupo
+   #   echo "Informe o tempo em horas que fica na internet: "
+#	read hor
+#   echo "Informe o tempo em minutos que fica na internet: "
+#	read min
+#   echo "Digite o período ex: "pm" ou "am" "
+#	read per
+#   echo "Adicionando usuário ao sistema: "	
+	sleep 2
+	useradd -m $nome -p $senha 
+   echo "Adicionando usuário no proxy: "
+	sleep 2
+	htpasswd -db /etc/squid/users $nome $senha 
+   echo "Adicionando usuário ao grupo de trabalho: "
+	groupadd $grupo 
+	touch /etc/squid/$grupo 2&> /dev/null 
+	echo $nome >> /etc/squid/$grupo
+	sleep 2
+#	echo $nome /etc/squid/$grupo 
+   echo "Adicionando usuário aos compartilhamentos: "
+	(echo $senha ; echo $senha) | smbpasswd -a $nome 1&> /dev/null 2&> /dev/null
+   	sleep 2
+
+#Agendando para apagar o usuário do acesso a internet
+#   echo "sed -i 's/$nome//g' /etc/squid/users" | at ${hor}:${min}${per}   
+#   echo "systemctl reload squid" | at ${hor}:${min}${per} 
+#   echo "#................................................................#"
+#   echo "Usuário vai ser removido da internet as: ${hor}:${min}${per}"
+#   echo "Usuário adicionado ao servidor.............................[  OK  ]"
+    
+ }
+ renova_internet()
+ {
+   echo "Informe o nome de usuário: "
+   read nome
+   echo "Informe a senha: "
+   read senha
+   echo "Informe o tempo a mais em minutos: "
+   read min
+   htpasswd -db /etc/squid/users $nome $senha
+   echo "sed -i 's/$nome//g' /etc/squid/users" | at now +${min}min
+   echo "#........................................................#"
+   echo "Usuário vai ser removido daqui a: +${min}min"
+   sleep 2
+ }
+ main    
